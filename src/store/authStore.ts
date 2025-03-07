@@ -13,6 +13,10 @@ interface AuthState {
   clearError: () => void;
 }
 
+interface User {
+  subscription_status?: 'active' | 'canceled' | 'inactive';
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: false,

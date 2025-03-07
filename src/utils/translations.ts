@@ -120,6 +120,12 @@ export const translations = {
       closeButton: 'Κλείσιμο',
       mustAcceptError: 'Πρέπει να αποδεχτείτε τους Όρους και Προϋποθέσεις για να συνεχίσετε.'
     },
+    subscription: {
+      cancelButton: 'Ακύρωση Συνδρομής',
+      canceling: 'Ακύρωση...',
+      cancelSuccess: 'Η συνδρομή σας θα ακυρωθεί στο τέλος της τρέχουσας περιόδου χρέωσης.',
+      cancelError: 'Παρουσιάστηκε σφάλμα κατά την ακύρωση της συνδρομής.'
+    }
   },
   en: {
     small: 'Small',
@@ -242,6 +248,12 @@ export const translations = {
       closeButton: 'Close',
       mustAcceptError: 'You must accept the Terms and Conditions to continue.'
     },
+    subscription: {
+      cancelButton: 'Cancel Subscription',
+      canceling: 'Canceling...',
+      cancelSuccess: 'Your subscription will be canceled at the end of the current billing period.',
+      cancelError: 'An error occurred while canceling your subscription.'
+    }
   }
 };
 

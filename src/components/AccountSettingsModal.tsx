@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, AlertCircle, Bell, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useLanguageStore } from '../store/languageStore';
@@ -193,6 +193,51 @@ function DeleteAccountModal({ isOpen, onClose, onConfirm }: DeleteAccountModalPr
   );
 }
 
+function CancelSubscriptionModal({ isOpen, onClose, onConfirm }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const { language } = useLanguageStore();
+  const t = translations[language];
+  const [isProcessing, setIsProcessing] = React.useState(false);
+
+  const handleConfirm = async () => {
+    setIsProcessing(true);
+    await onConfirm();
+    setIsProcessing(false);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[10000] flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg max-w-md w-full p-6">
+        <h3 className="text-lg font-semibold mb-4">Ακύρωση Συνδρομής</h3>
+        <p className="text-gray-600 mb-6">
+          Είστε σίγουροι ότι θέλετε να ακυρώσετε τη συνδρομή σας; Θα έχετε πρόσβαση στις premium λειτουργίες μέχρι το τέλος της τρέχουσας περιόδου χρέωσης.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={isProcessing}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Ακύρωση
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={isProcessing}
+            className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+          >
+            {isProcessing ? 'Επεξεργασία...' : 'Επιβεβαίωση'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalProps) {
   const { user, setUser } = useAuthStore();
   const { language } = useLanguageStore();
@@ -214,6 +259,8 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     type: 'success' | 'error';
   }>({ show: false, message: '', type: 'success' });
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const handleSaveChanges = async () => {
     try {
@@ -337,6 +384,56 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
     navigate('/pricing');
   };
 
+  const handleCancelSubscription = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Παίρνουμε το subscription ID από το Stripe
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .from('subscriptions')
+        .select('stripe_subscription_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (subscriptionError || !subscriptionData?.stripe_subscription_id) {
+        throw new Error('Δεν βρέθηκε ενεργή συνδρομή');
+      }
+
+      // Καλούμε το endpoint για ακύρωση
+      const response = await fetch('/functions/v1/cancel-subscription', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          subscriptionId: subscriptionData.stripe_subscription_id
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Σφάλμα κατά την ακύρωση της συνδρομής');
+      }
+
+      setSuccess(t.subscription.cancelSuccess);
+      
+      // Ανανέωση του UI μετά από 2 δευτερόλεπτα
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center overflow-auto">
@@ -432,6 +529,22 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
               </div>
             </div>
 
+            {/* Subscription Section */}
+            {status === 'premium' && (
+              <div className="p-4 border rounded-lg">
+                <h3 className="font-medium mb-3">Premium Συνδρομή</h3>
+                <button
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent 
+                    text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 
+                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                  {t.subscription.cancelButton}
+                </button>
+              </div>
+            )}
+
+            {/* Password Change Button */}
             <button
               className="w-full border border-blue-600 text-blue-600 py-2 rounded-md hover:bg-blue-50"
               onClick={handlePasswordChange}
@@ -439,6 +552,7 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
               {t.changePassword}
             </button>
 
+            {/* Delete Account Button */}
             <button
               className="w-full border border-red-600 text-red-600 py-2 rounded-md hover:bg-red-50"
               onClick={() => setShowDeleteConfirm(true)}
@@ -467,6 +581,11 @@ export function AccountSettingsModal({ isOpen, onClose }: AccountSettingsModalPr
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
+      />
+      <CancelSubscriptionModal
+        isOpen={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={handleCancelSubscription}
       />
     </>
   );
